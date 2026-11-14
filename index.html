@@ -1,0 +1,535 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0a6b57">
+<title>Control de Paquetes</title>
+<style>
+:root {
+  --bg: #eef1ef; --surface: #ffffff; --surface-2: #e3e8e5; --ink: #16201c; --ink-soft: #55635d; --line: #cfd7d3;
+  --accent: #0a6b57; --accent-ink: #ffffff;
+  --st-recibido: #0a6b57; --st-entregado: #3b5bb5; --st-devuelto: #7a5a14; --st-problema: #b3261e;
+  --st-recibido-bg: #d8efe8; --st-entregado-bg: #dde5f8; --st-devuelto-bg: #f3e6c4; --st-problema-bg: #f8dcd9;
+  --font-body: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --font-mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  --radius: 10px;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #121a17; --surface: #1b2521; --surface-2: #26322d; --ink: #e8efec; --ink-soft: #9aaaa3; --line: #34423c;
+    --accent: #4fc3a6; --accent-ink: #08241d;
+    --st-recibido: #62d0b3; --st-entregado: #8fa9ee; --st-devuelto: #e2bd62; --st-problema: #f08c84;
+    --st-recibido-bg: #1d3a32; --st-entregado-bg: #252f4d; --st-devuelto-bg: #40361b; --st-problema-bg: #4a2724;
+    color-scheme: dark;
+  }
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; }
+body {
+  background: var(--bg); color: var(--ink); font-family: var(--font-body); font-size: 15px; line-height: 1.45;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-top: env(safe-area-inset-top, 0px); padding-bottom: calc(40px + env(safe-area-inset-bottom, 0px));
+}
+.wrap { max-width: 560px; margin: 0 auto; }
+header.top { position: sticky; top: 0; z-index: 20; background: var(--bg); padding-block: 14px 10px; }
+.titlerow { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
+h1 { font-size: 20px; font-weight: 600; margin: 0; letter-spacing: -0.01em; }
+.sync { font-size: 12px; color: var(--ink-soft); }
+.tabs { display: flex; gap: 4px; margin-top: 12px; background: var(--surface-2); padding: 4px; border-radius: 12px; }
+.tab { flex: 1; border: 0; background: transparent; color: var(--ink-soft); font: inherit; font-weight: 500; padding: 9px 8px; border-radius: 9px; cursor: pointer; }
+.tab[aria-selected="true"] { background: var(--surface); color: var(--ink); box-shadow: 0 1px 2px rgba(0,0,0,.12); }
+.tab .n { font-family: var(--font-mono); font-size: 12px; margin-left: 4px; color: var(--ink-soft); }
+button:focus-visible, input:focus-visible, textarea:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.panel { display: flex; flex-direction: column; gap: 16px; padding-top: 14px; }
+.card { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 16px; display: flex; flex-direction: column; gap: 14px; }
+label.f { display: flex; flex-direction: column; gap: 6px; font-size: 13px; font-weight: 500; color: var(--ink-soft); }
+input[type="text"], input[type="search"], textarea {
+  font: inherit; font-size: 16px; color: var(--ink); background: var(--bg); border: 1px solid var(--line);
+  border-radius: 8px; padding: 11px 12px; width: 100%; min-width: 0;
+}
+textarea { resize: vertical; min-height: 64px; }
+.mono { font-family: var(--font-mono); letter-spacing: 0.02em; }
+.btn { font: inherit; font-weight: 600; border-radius: 10px; padding: 13px 16px; border: 1px solid var(--accent); background: var(--accent); color: var(--accent-ink); cursor: pointer; width: 100%; }
+.btn.ghost { background: transparent; color: var(--accent); }
+.btn.danger { border-color: var(--st-problema); color: var(--st-problema); background: transparent; }
+.btn.danger.armed { background: var(--st-problema); color: var(--bg); }
+.btn[disabled] { opacity: .5; cursor: not-allowed; }
+.btn.small { width: auto; padding: 9px 14px; font-size: 14px; }
+.two { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.preview { display: block; max-width: 100%; max-height: 240px; border-radius: 8px; margin: 0 auto; }
+.scan-msg { font-size: 13px; min-height: 18px; color: var(--ink-soft); }
+.scan-msg.ok { color: var(--st-recibido); }
+.warn { font-size: 13px; color: var(--st-devuelto); background: var(--st-devuelto-bg); padding: 8px 10px; border-radius: 8px; }
+.toast { position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(20px + env(safe-area-inset-bottom, 0px)); background: var(--ink); color: var(--bg); padding: 10px 16px; border-radius: 10px; font-size: 14px; z-index: 90; max-width: calc(100% - 32px); }
+.filters { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 2px; }
+.chip { flex: none; border: 1px solid var(--line); background: var(--surface); color: var(--ink); font: inherit; font-size: 13px; padding: 7px 12px; border-radius: 999px; cursor: pointer; }
+.chip[aria-pressed="true"] { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+.list { display: flex; flex-direction: column; gap: 10px; }
+.row { display: grid; grid-template-columns: 64px minmax(0, 1fr); gap: 12px; align-items: center; text-align: left; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 10px; width: 100%; font: inherit; color: inherit; cursor: pointer; }
+.thumb { width: 64px; height: 64px; border-radius: 8px; object-fit: cover; background: var(--surface-2); display: block; }
+.row .name { font-weight: 600; overflow-wrap: anywhere; }
+.row .pid { font-family: var(--font-mono); font-size: 13px; color: var(--ink-soft); overflow-wrap: anywhere; }
+.row .meta { display: flex; flex-wrap: wrap; gap: 6px 10px; align-items: center; margin-top: 4px; font-size: 12px; color: var(--ink-soft); }
+.pill { font-size: 12px; font-weight: 600; padding: 2px 9px; border-radius: 999px; }
+.pill.recibido { color: var(--st-recibido); background: var(--st-recibido-bg); }
+.pill.entregado { color: var(--st-entregado); background: var(--st-entregado-bg); }
+.pill.devuelto { color: var(--st-devuelto); background: var(--st-devuelto-bg); }
+.pill.problema { color: var(--st-problema); background: var(--st-problema-bg); }
+.empty { text-align: center; color: var(--ink-soft); padding: 36px 12px; }
+.empty b { display: block; color: var(--ink); margin-bottom: 4px; }
+.tools { display: flex; flex-direction: column; gap: 8px; }
+.tools small { color: var(--ink-soft); font-size: 12px; }
+.sheet { position: fixed; inset: 0; z-index: 40; background: var(--bg); overflow-y: auto;
+  padding: calc(14px + env(safe-area-inset-top, 0px)) max(16px, env(safe-area-inset-right, 0px)) calc(32px + env(safe-area-inset-bottom, 0px)) max(16px, env(safe-area-inset-left, 0px)); }
+.sheet .inner { max-width: 560px; margin: 0 auto; display: flex; flex-direction: column; gap: 14px; }
+.sheet .bar { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+.bigphoto { width: 100%; max-height: 420px; object-fit: contain; border-radius: var(--radius); background: var(--surface-2); display: block; }
+.kv { display: grid; grid-template-columns: 110px minmax(0, 1fr); gap: 8px 12px; font-size: 14px; margin: 0; }
+.kv dt { color: var(--ink-soft); }
+.kv dd { margin: 0; overflow-wrap: anywhere; }
+.statusbtns { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.hist { font-size: 13px; color: var(--ink-soft); display: flex; flex-direction: column; gap: 4px; margin: 0; padding: 0; list-style: none; }
+
+/* camara a pantalla completa */
+.cam { position: fixed; inset: 0; z-index: 80; background: #000; display: flex; flex-direction: column; }
+.cam video { flex: 1; min-height: 0; width: 100%; object-fit: cover; background: #000; }
+.cam .top { position: absolute; top: 0; left: 0; right: 0; padding: calc(14px + env(safe-area-inset-top, 0px)) 16px 14px; color: #fff; font-size: 14px; background: linear-gradient(#000a, transparent); text-align: center; }
+.cam .frame { position: absolute; left: 10%; right: 10%; top: 28%; height: 28%; border: 2px solid #ffffffcc; border-radius: 12px; pointer-events: none; }
+.cam .frame.noscan { display: none; }
+.cam .bottom { position: absolute; left: 0; right: 0; bottom: 0; display: flex; align-items: center; justify-content: space-around; gap: 12px; padding: 18px 16px calc(18px + env(safe-area-inset-bottom, 0px)); background: linear-gradient(transparent, #000a); }
+.cam .shutter { width: 68px; height: 68px; border-radius: 50%; border: 4px solid #fff; background: #ffffff33; cursor: pointer; }
+.cam .shutter:active { background: #ffffff99; }
+.cam .cancel { color: #fff; background: #ffffff22; border: 0; border-radius: 10px; padding: 12px 16px; font: inherit; cursor: pointer; min-width: 96px; }
+.cam .spacer { min-width: 96px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <div class="titlerow">
+      <h1>Control de Paquetes</h1>
+      <span class="sync" id="sync">Cargando…</span>
+    </div>
+    <div class="tabs" role="tablist">
+      <button class="tab" role="tab" id="tab-reg" aria-selected="true" data-tab="reg">Registrar</button>
+      <button class="tab" role="tab" id="tab-list" aria-selected="false" data-tab="list">Paquetes<span class="n" id="count">0</span></button>
+    </div>
+  </header>
+
+  <section class="panel" id="panel-reg">
+    <div class="card">
+      <div class="two">
+        <button class="btn" id="scanBtn" type="button">Escanear código</button>
+        <button class="btn ghost" id="photoBtn" type="button">Foto del paquete</button>
+      </div>
+      <div class="scan-msg" id="scanMsg" aria-live="polite">Apunta la cámara al código de barras o QR de la etiqueta.</div>
+      <div id="previewBox"></div>
+      <label class="f" for="pid">ID del paquete
+        <input id="pid" class="mono" type="text" autocomplete="off" autocapitalize="characters" placeholder="Se llena al escanear, o escríbelo">
+      </label>
+      <div class="warn" id="dupWarn" hidden></div>
+      <label class="f" for="nombre">Nombre del destinatario
+        <input id="nombre" type="text" autocomplete="off" placeholder="Como aparece en la etiqueta">
+      </label>
+      <label class="f" for="notas">Notas (opcional)
+        <textarea id="notas" placeholder="Ej. caja golpeada, sin sello, dejado por repartidor"></textarea>
+      </label>
+      <button class="btn" id="saveBtn" type="button">Guardar paquete</button>
+    </div>
+  </section>
+
+  <section class="panel" id="panel-list" hidden>
+    <input id="q" type="search" placeholder="Buscar por nombre o ID" autocomplete="off">
+    <div class="filters" id="filters"></div>
+    <div class="list" id="list"></div>
+    <div class="card tools">
+      <button class="btn ghost" id="csvBtn" type="button">Exportar lista a CSV (Excel)</button>
+      <button class="btn ghost" id="bakBtn" type="button">Guardar respaldo completo con fotos</button>
+      <button class="btn ghost" id="resBtn" type="button">Restaurar respaldo</button>
+      <input id="resIn" type="file" accept="application/json,.json" hidden>
+      <small>Los datos viven en este teléfono. Haz un respaldo seguido y guárdalo en Drive o mándatelo por WhatsApp.</small>
+    </div>
+  </section>
+</div>
+
+<div class="sheet" id="sheet" hidden></div>
+<div class="cam" id="cam" hidden>
+  <video id="camVideo" playsinline muted autoplay></video>
+  <div class="top" id="camTop">Abriendo cámara…</div>
+  <div class="frame" id="camFrame"></div>
+  <div class="bottom">
+    <button class="cancel" id="camCancel" type="button">Cancelar</button>
+    <button class="shutter" id="camShutter" type="button" aria-label="Tomar foto"></button>
+    <span class="spacer"></span>
+  </div>
+</div>
+<div class="toast" id="toast" hidden></div>
+
+<script>
+(function () {
+  var ESTADOS = { recibido: "Recibido", entregado: "Entregado", devuelto: "Devuelto", problema: "Con problema" };
+  var records = [];
+  var filter = "todos";
+  var openId = null;
+  var photoData = "";
+  var dbh = null;
+  var memOnly = false;
+
+  function $(id) { return document.getElementById(id); }
+  function esc(s) { return String(s == null ? "" : s).replace(/[&<>"']/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]; }); }
+  function fmt(ts) {
+    try { return new Date(ts).toLocaleString("es-MX", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" }); }
+    catch (e) { return String(ts); }
+  }
+  function stamp() { var d = new Date(); return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0"); }
+  function toast(msg) {
+    var t = $("toast"); t.textContent = msg; t.hidden = false;
+    clearTimeout(toast._t); toast._t = setTimeout(function () { t.hidden = true; }, 3000);
+  }
+  function newId() { return "p" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6); }
+  function sortRecords() { records.sort(function (a, b) { return (b.creadoEn || 0) - (a.creadoEn || 0); }); }
+
+  /* ---------- almacenamiento (IndexedDB) ---------- */
+  function openDb() {
+    return new Promise(function (res, rej) {
+      if (!window.indexedDB) { rej(new Error("sin indexedDB")); return; }
+      var r = indexedDB.open("paquetes-db", 1);
+      r.onupgradeneeded = function () { r.result.createObjectStore("p", { keyPath: "id" }); };
+      r.onsuccess = function () { res(r.result); };
+      r.onerror = function () { rej(r.error); };
+    });
+  }
+  function dbAll() {
+    return new Promise(function (res, rej) {
+      var q = dbh.transaction("p").objectStore("p").getAll();
+      q.onsuccess = function () { res(q.result || []); }; q.onerror = function () { rej(q.error); };
+    });
+  }
+  function dbPut(rec) {
+    return new Promise(function (res, rej) {
+      var tx = dbh.transaction("p", "readwrite"); tx.objectStore("p").put(rec);
+      tx.oncomplete = function () { res(); }; tx.onerror = function () { rej(tx.error); }; tx.onabort = function () { rej(tx.error); };
+    });
+  }
+  function dbDel(id) {
+    return new Promise(function (res, rej) {
+      var tx = dbh.transaction("p", "readwrite"); tx.objectStore("p").delete(id);
+      tx.oncomplete = function () { res(); }; tx.onerror = function () { rej(tx.error); };
+    });
+  }
+  function saveRecord(rec) {
+    var i = records.findIndex(function (r) { return r.id === rec.id; });
+    if (i >= 0) records[i] = rec; else records.push(rec);
+    sortRecords(); render();
+    if (memOnly) return Promise.resolve();
+    return dbPut(rec).catch(function () { toast("No se pudo guardar. Revisa el espacio del teléfono."); });
+  }
+  function removeRecord(id) {
+    records = records.filter(function (r) { return r.id !== id; }); render();
+    if (memOnly) return Promise.resolve();
+    return dbDel(id).catch(function () { toast("No se pudo eliminar."); });
+  }
+
+  /* ---------- imágenes ---------- */
+  function dims(el) { return { w: el.videoWidth || el.naturalWidth || el.width, h: el.videoHeight || el.naturalHeight || el.height }; }
+  function compress(el, maxSide) {
+    var d = dims(el), s = Math.min(1, maxSide / Math.max(d.w, d.h));
+    var c = document.createElement("canvas"); c.width = Math.round(d.w * s); c.height = Math.round(d.h * s);
+    c.getContext("2d").drawImage(el, 0, 0, c.width, c.height);
+    var q = 0.65, out = c.toDataURL("image/jpeg", q);
+    while (out.length > 120000 && q > 0.35) { q -= 0.08; out = c.toDataURL("image/jpeg", q); }
+    return out;
+  }
+  function loadImage(file) {
+    return new Promise(function (resolve, reject) {
+      var url = URL.createObjectURL(file), img = new Image();
+      img.onload = function () { URL.revokeObjectURL(url); resolve(img); };
+      img.onerror = function () { URL.revokeObjectURL(url); reject(new Error("img")); };
+      img.src = url;
+    });
+  }
+
+  /* ---------- cámara y lectura de códigos ---------- */
+  var cam = { stream: null, timer: 0, zx: null, opts: null, busy: false };
+  var detector = null;
+  try { if ("BarcodeDetector" in window) detector = new BarcodeDetector(); } catch (e) { detector = null; }
+
+  function closeCamera() {
+    clearTimeout(cam.timer); cam.timer = 0; cam.busy = false;
+    try { if (cam.zx) cam.zx.reset(); } catch (e) {} cam.zx = null;
+    if (cam.stream) { cam.stream.getTracks().forEach(function (t) { t.stop(); }); cam.stream = null; }
+    var v = $("camVideo"); try { v.pause(); } catch (e) {} v.srcObject = null;
+    $("cam").hidden = true; cam.opts = null;
+  }
+  function found(value) {
+    if (!cam.opts || cam.busy) return; cam.busy = true;
+    var snap = ""; try { snap = compress($("camVideo"), 900); } catch (e) {}
+    var cb = cam.opts.onCode; closeCamera();
+    try { if (navigator.vibrate) navigator.vibrate(60); } catch (e) {}
+    cb(value, snap);
+  }
+  function loadZX() {
+    return new Promise(function (res, rej) {
+      if (window.ZXing) { res(); return; }
+      var s = document.createElement("script");
+      s.src = "https://cdn.jsdelivr.net/npm/@zxing/library@0.21.3/umd/index.min.js";
+      s.onload = res; s.onerror = rej; document.head.appendChild(s);
+    });
+  }
+  function startDetect() {
+    var v = $("camVideo");
+    if (detector) {
+      (function loop() {
+        if (!cam.opts || !cam.stream) return;
+        detector.detect(v).then(function (r) { if (r && r.length && r[0].rawValue) found(r[0].rawValue); })
+          .catch(function () {}).then(function () { if (cam.opts && cam.stream && !cam.busy) cam.timer = setTimeout(loop, 220); });
+      })();
+    } else {
+      loadZX().then(function () {
+        if (!cam.opts) return;
+        cam.zx = new ZXing.BrowserMultiFormatReader();
+        cam.zx.decodeContinuously(v, function (result) { if (result) found(result.getText()); });
+      }).catch(function () { $("camTop").textContent = "No se pudo cargar el lector. Toma la foto y escribe el ID."; });
+    }
+  }
+  function pickFile(opts) {
+    var inp = document.createElement("input"); inp.type = "file"; inp.accept = "image/*"; inp.setAttribute("capture", "environment");
+    inp.onchange = function () {
+      var f = inp.files && inp.files[0]; if (!f) return;
+      loadImage(f).then(function (img) {
+        var snap = compress(img, 900);
+        if (opts.scan && detector) {
+          detector.detect(img).then(function (r) {
+            if (r && r.length && r[0].rawValue) opts.onCode(r[0].rawValue, snap); else opts.onPhoto(snap, true);
+          }).catch(function () { opts.onPhoto(snap, true); });
+        } else opts.onPhoto(snap, opts.scan);
+      }).catch(function () { toast("No se pudo abrir la foto."); });
+    };
+    inp.click();
+  }
+  function openCamera(opts) {
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) { pickFile(opts); return; }
+    cam.opts = opts; cam.busy = false;
+    $("cam").hidden = false;
+    $("camFrame").className = "frame" + (opts.scan ? "" : " noscan");
+    $("camTop").textContent = opts.scan ? "Apunta al código de barras o QR" : (opts.title || "Encuadra y toma la foto");
+    navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: "environment" }, width: { ideal: 1920 }, height: { ideal: 1080 } }, audio: false })
+      .then(function (stream) {
+        if (!cam.opts) { stream.getTracks().forEach(function (t) { t.stop(); }); return; }
+        cam.stream = stream; var v = $("camVideo"); v.srcObject = stream;
+        return v.play().catch(function () {}).then(function () { if (opts.scan) startDetect(); });
+      })
+      .catch(function () {
+        closeCamera();
+        toast("No se pudo abrir la cámara. Activa el permiso en el navegador y vuelve a intentar.");
+        pickFile(opts);
+      });
+  }
+  $("camCancel").addEventListener("click", closeCamera);
+  $("camShutter").addEventListener("click", function () {
+    if (!cam.opts || !cam.stream) return;
+    var snap = ""; try { snap = compress($("camVideo"), 900); } catch (e) { toast("No se pudo tomar la foto."); return; }
+    var cb = cam.opts.onPhoto, scan = cam.opts.scan; closeCamera(); cb(snap, scan);
+  });
+
+  /* ---------- formulario ---------- */
+  function setPhoto(data) {
+    photoData = data;
+    $("previewBox").innerHTML = data ? '<img class="preview" alt="Foto del paquete" src="' + data + '">' : "";
+  }
+  function setMsg(text, ok) { var m = $("scanMsg"); m.textContent = text; m.className = "scan-msg" + (ok ? " ok" : ""); }
+  function checkDup() {
+    var v = $("pid").value.trim().toLowerCase(), w = $("dupWarn");
+    var d = v && records.find(function (r) { return (r.paqueteId || "").toLowerCase() === v; });
+    if (d) { w.hidden = false; w.textContent = "Este ID ya está registrado (" + fmt(d.creadoEn) + ", " + (d.nombre || "sin nombre") + "). Puedes guardarlo de todos modos."; }
+    else w.hidden = true;
+  }
+  $("scanBtn").addEventListener("click", function () {
+    openCamera({
+      scan: true,
+      onCode: function (value, snap) {
+        $("pid").value = value; checkDup(); if (snap && !photoData) setPhoto(snap);
+        setMsg("Código leído: " + value, true); $("nombre").focus();
+      },
+      onPhoto: function (snap, scan) {
+        setPhoto(snap);
+        setMsg(scan ? "No se leyó ningún código en la foto. Escribe el ID abajo." : "Foto guardada.", false);
+      }
+    });
+  });
+  $("photoBtn").addEventListener("click", function () {
+    openCamera({ scan: false, title: "Toma la foto del paquete", onPhoto: function (snap) { setPhoto(snap); setMsg("Foto guardada.", true); } });
+  });
+  $("pid").addEventListener("input", checkDup);
+  function resetForm() {
+    setPhoto(""); $("pid").value = ""; $("nombre").value = ""; $("notas").value = ""; $("dupWarn").hidden = true;
+    setMsg("Apunta la cámara al código de barras o QR de la etiqueta.", false);
+  }
+  $("saveBtn").addEventListener("click", function () {
+    var pid = $("pid").value.trim(), nombre = $("nombre").value.trim();
+    if (!pid) { toast("Falta el ID del paquete."); $("pid").focus(); return; }
+    if (!nombre) { toast("Falta el nombre del destinatario."); $("nombre").focus(); return; }
+    var now = Date.now();
+    var rec = { id: newId(), paqueteId: pid, nombre: nombre, notas: $("notas").value.trim(), estado: "recibido", foto: photoData, creadoEn: now, historial: [{ estado: "recibido", en: now }] };
+    $("saveBtn").disabled = true;
+    saveRecord(rec).then(function () { $("saveBtn").disabled = false; resetForm(); toast("Paquete guardado"); });
+  });
+
+  /* ---------- lista ---------- */
+  function counts() {
+    var c = { todos: records.length, recibido: 0, entregado: 0, devuelto: 0, problema: 0 };
+    records.forEach(function (r) { if (c[r.estado] != null) c[r.estado]++; });
+    return c;
+  }
+  function visible() {
+    var q = $("q").value.trim().toLowerCase();
+    return records.filter(function (r) {
+      if (filter !== "todos" && r.estado !== filter) return false;
+      if (!q) return true;
+      return (r.nombre || "").toLowerCase().indexOf(q) >= 0 || (r.paqueteId || "").toLowerCase().indexOf(q) >= 0;
+    });
+  }
+  function render() {
+    var c = counts(); $("count").textContent = c.todos;
+    var f = "";
+    [["todos", "Todos"], ["recibido", "Recibidos"], ["entregado", "Entregados"], ["devuelto", "Devueltos"], ["problema", "Con problema"]].forEach(function (p) {
+      f += '<button class="chip" type="button" data-f="' + p[0] + '" aria-pressed="' + (filter === p[0]) + '">' + p[1] + " " + c[p[0]] + "</button>";
+    });
+    $("filters").innerHTML = f;
+    var rows = visible(), html = "";
+    if (!records.length) html = '<div class="empty"><b>Aún no hay paquetes</b>Registra el primero en la pestaña Registrar.</div>';
+    else if (!rows.length) html = '<div class="empty"><b>Sin resultados</b>Prueba con otro nombre, ID o filtro.</div>';
+    else rows.forEach(function (r) {
+      html += '<button class="row" type="button" data-open="' + esc(r.id) + '">' +
+        (r.foto ? '<img class="thumb" alt="" src="' + r.foto + '">' : '<div class="thumb"></div>') +
+        '<div><div class="name">' + esc(r.nombre) + '</div><div class="pid">' + esc(r.paqueteId) + '</div>' +
+        '<div class="meta"><span class="pill ' + esc(r.estado) + '">' + esc(ESTADOS[r.estado] || r.estado) + '</span><span>' + esc(fmt(r.creadoEn)) + '</span></div></div></button>';
+    });
+    $("list").innerHTML = html;
+    if (openId) renderSheet();
+  }
+
+  /* ---------- detalle ---------- */
+  var pendingDelPhoto = "", armedDelete = false;
+  function openSheet(id) { openId = id; pendingDelPhoto = ""; armedDelete = false; renderSheet(); $("sheet").hidden = false; $("sheet").scrollTop = 0; }
+  function closeSheet() { openId = null; $("sheet").hidden = true; }
+  function renderSheet() {
+    var r = records.find(function (x) { return x.id === openId; });
+    if (!r) { closeSheet(); return; }
+    var keepName = ($("recibio") || {}).value || "";
+    var h = '<div class="inner"><div class="bar"><button class="btn ghost small" type="button" data-act="close">‹ Volver</button><span class="pill ' + esc(r.estado) + '">' + esc(ESTADOS[r.estado] || r.estado) + "</span></div>";
+    if (r.foto) h += '<img class="bigphoto" alt="Foto del paquete" src="' + r.foto + '">';
+    h += '<div class="card"><dl class="kv"><dt>Destinatario</dt><dd>' + esc(r.nombre) + '</dd><dt>ID</dt><dd class="mono">' + esc(r.paqueteId) + "</dd><dt>Recibido</dt><dd>" + esc(fmt(r.creadoEn)) + "</dd>";
+    if (r.notas) h += "<dt>Notas</dt><dd>" + esc(r.notas) + "</dd>";
+    if (r.entrega) h += "<dt>Entregado a</dt><dd>" + esc(r.entrega.recibio || "—") + "</dd><dt>Fecha entrega</dt><dd>" + esc(fmt(r.entrega.en)) + "</dd>";
+    h += "</dl></div>";
+    if (r.entrega && r.entrega.foto) h += '<div class="card"><b>Foto de quien recogió</b><img class="bigphoto" alt="Identificación o firma" src="' + r.entrega.foto + '"></div>';
+    if (r.estado === "recibido" || r.estado === "problema" || r.estado === "devuelto") {
+      h += '<div class="card"><b>Registrar entrega</b>' +
+        '<label class="f" for="recibio">Quién lo recoge<input id="recibio" type="text" autocomplete="off" placeholder="Nombre de quien recibe"></label>' +
+        (pendingDelPhoto ? '<img class="preview" alt="Foto de entrega" src="' + pendingDelPhoto + '">' : "") +
+        '<button class="btn ghost" type="button" data-act="delphoto">' + (pendingDelPhoto ? "Repetir foto de identificación o firma" : "Foto de identificación o firma") + "</button>" +
+        '<button class="btn" type="button" data-act="deliver">Marcar como entregado</button></div>';
+    }
+    h += '<div class="card"><b>Cambiar estado</b><div class="statusbtns">';
+    Object.keys(ESTADOS).forEach(function (k) { if (k !== r.estado && k !== "entregado") h += '<button class="btn ghost small" type="button" data-set="' + k + '">' + ESTADOS[k] + "</button>"; });
+    if (r.estado === "entregado") h += '<button class="btn ghost small" type="button" data-set="recibido">Reabrir</button>';
+    h += "</div></div>";
+    if (r.historial && r.historial.length) {
+      h += '<div class="card"><b>Historial</b><ul class="hist">';
+      r.historial.slice().reverse().forEach(function (e) { h += "<li>" + esc(ESTADOS[e.estado] || e.estado) + " · " + esc(fmt(e.en)) + "</li>"; });
+      h += "</ul></div>";
+    }
+    h += '<button class="btn danger' + (armedDelete ? " armed" : "") + '" type="button" data-act="delete">' + (armedDelete ? "Toca otra vez para eliminar" : "Eliminar registro") + "</button></div>";
+    $("sheet").innerHTML = h;
+    if ($("recibio")) $("recibio").value = keepName;
+  }
+  function changeState(r, estado, extra) {
+    var n = Object.assign({}, r, extra || {}, { estado: estado });
+    n.historial = (r.historial || []).concat([{ estado: estado, en: Date.now() }]);
+    return saveRecord(n);
+  }
+  $("sheet").addEventListener("click", function (e) {
+    var t = e.target.closest("[data-act],[data-set]"); if (!t) return;
+    var r = records.find(function (x) { return x.id === openId; }); if (!r) return;
+    var act = t.dataset.act;
+    if (act === "close") { closeSheet(); return; }
+    if (act === "delphoto") {
+      openCamera({ scan: false, title: "Foto de identificación o firma", onPhoto: function (snap) { pendingDelPhoto = snap; renderSheet(); } });
+      return;
+    }
+    if (act === "deliver") {
+      var who = ($("recibio").value || "").trim();
+      if (!who) { toast("Escribe quién recoge el paquete."); $("recibio").focus(); return; }
+      var ph = pendingDelPhoto; pendingDelPhoto = "";
+      changeState(r, "entregado", { entrega: { recibio: who, foto: ph, en: Date.now() } }).then(function () { toast("Entrega registrada"); });
+      return;
+    }
+    if (act === "delete") {
+      if (!armedDelete) { armedDelete = true; renderSheet(); setTimeout(function () { if (armedDelete) { armedDelete = false; if (openId) renderSheet(); } }, 4000); return; }
+      var id = r.id; closeSheet(); removeRecord(id).then(function () { toast("Registro eliminado"); }); return;
+    }
+    if (t.dataset.set) changeState(r, t.dataset.set).then(function () { toast("Estado: " + ESTADOS[t.dataset.set]); });
+  });
+
+  /* ---------- exportar / respaldo ---------- */
+  function saveFile(name, data, type) {
+    var blob = new Blob([data], { type: type }), url = URL.createObjectURL(blob), a = document.createElement("a");
+    a.href = url; a.download = name; document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(function () { URL.revokeObjectURL(url); }, 4000);
+  }
+  function csvCell(v) { v = String(v == null ? "" : v); return /[",\n;]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v; }
+  $("csvBtn").addEventListener("click", function () {
+    if (!records.length) { toast("No hay paquetes para exportar."); return; }
+    var lines = [["ID paquete", "Destinatario", "Estado", "Recibido", "Notas", "Entregado a", "Fecha entrega"].join(",")];
+    records.slice().sort(function (a, b) { return a.creadoEn - b.creadoEn; }).forEach(function (r) {
+      lines.push([r.paqueteId, r.nombre, ESTADOS[r.estado] || r.estado, fmt(r.creadoEn), r.notas, r.entrega ? r.entrega.recibio : "", r.entrega ? fmt(r.entrega.en) : ""].map(csvCell).join(","));
+    });
+    saveFile("paquetes-" + stamp() + ".csv", "﻿" + lines.join("\n"), "text/csv;charset=utf-8");
+  });
+  $("bakBtn").addEventListener("click", function () {
+    if (!records.length) { toast("No hay paquetes para respaldar."); return; }
+    saveFile("respaldo-paquetes-" + stamp() + ".json", JSON.stringify({ version: 1, paquetes: records }), "application/json");
+  });
+  $("resBtn").addEventListener("click", function () { $("resIn").click(); });
+  $("resIn").addEventListener("change", function (e) {
+    var f = e.target.files && e.target.files[0]; if (!f) return;
+    var rd = new FileReader();
+    rd.onload = function () {
+      try {
+        var data = JSON.parse(rd.result), list = data.paquetes || [], n = 0;
+        list.forEach(function (rec) { if (rec && rec.id && !records.some(function (x) { return x.id === rec.id; })) { records.push(rec); n++; if (!memOnly) dbPut(rec).catch(function () {}); } });
+        sortRecords(); render(); toast("Se restauraron " + n + " paquetes.");
+      } catch (err) { toast("El archivo de respaldo no es válido."); }
+    };
+    rd.readAsText(f); e.target.value = "";
+  });
+
+  /* ---------- pestañas ---------- */
+  function showTab(name) {
+    $("panel-reg").hidden = name !== "reg"; $("panel-list").hidden = name !== "list";
+    $("tab-reg").setAttribute("aria-selected", name === "reg"); $("tab-list").setAttribute("aria-selected", name === "list");
+    window.scrollTo(0, 0);
+  }
+  document.querySelectorAll(".tab").forEach(function (b) { b.addEventListener("click", function () { showTab(b.dataset.tab); }); });
+  $("q").addEventListener("input", render);
+  $("filters").addEventListener("click", function (e) { var c = e.target.closest("[data-f]"); if (c) { filter = c.dataset.f; render(); } });
+  $("list").addEventListener("click", function (e) { var c = e.target.closest("[data-open]"); if (c) openSheet(c.dataset.open); });
+
+  /* ---------- inicio ---------- */
+  render();
+  openDb().then(function (db) {
+    dbh = db; return dbAll();
+  }).then(function (all) {
+    records = all; sortRecords(); $("sync").textContent = "Guardado en este teléfono"; render();
+    try { if (navigator.storage && navigator.storage.persist) navigator.storage.persist(); } catch (e) {}
+  }).catch(function () {
+    memOnly = true; $("sync").textContent = "Sin guardado: no cierres la página"; render();
+    toast("Este navegador no permite guardar datos. Usa Chrome y no navegues en modo privado.");
+  });
+})();
+</script>
+</body>
+</html>
